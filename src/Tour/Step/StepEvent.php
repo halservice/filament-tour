@@ -16,6 +16,13 @@ trait StepEvent
 
     private ?array $redirectOnNext = null;
 
+    private ?string $clickOnPrev = null;
+
+    private ?array $notifyOnPrev = null;
+
+    private ?array $dispatchOnPrev = null;
+
+    private ?array $redirectOnPrev = null;
     /**
      * Set the CSS selector to be clicked when the user clicks on the next button of your step.
      *
@@ -65,7 +72,7 @@ trait StepEvent
     /**
      * Set the livewire event to dispatch to, when the user clicks on the next button of your step.
      *
-     * @param  mixed  ...$params
+     * @param  Step  ...$args
      * @return $this
      */
     public function dispatchOnNext(string $name, ...$params): self
@@ -93,5 +100,83 @@ trait StepEvent
     public function getRedirectOnNext(): ?array
     {
         return $this->redirectOnNext;
+    }
+    /**
+     * Set the CSS selector to be clicked when the user clicks on the next button of your step.
+     *
+     * @return $this
+     */
+    public function clickOnPrev(string|Closure $selector): self
+    {
+        if (is_bool($selector)) {
+            $this->clickOnPrev = $selector;
+        } else {
+            $this->clickOnPrev = $this->evaluate($selector);
+        }
+
+        return $this;
+    }
+
+    /**
+     * Set the notification to be shown when the user clicks on the next button of your step.
+     *
+     * @return $this
+     */
+    public function notifyOnPrev(Notification|Closure $notification): self
+    {
+        if (is_callable($notification)) {
+            $this->notifyOnPrev = $this->evaluate($notification);
+        } else {
+            $this->notifyOnPrev = $notification->toArray();
+        }
+
+        return $this;
+    }
+
+    /**
+     * Set the redirection to be done when the user clicks on the next button of your step.
+     * <br>
+     * You can choose to open the redirection in a new tab or not with **$newTab**, default false.
+     *
+     * @return $this
+     */
+    public function redirectOnPrev(string $url, bool $newTab = false): self
+    {
+        $this->redirectOnPrev = ['url' => $url, 'newTab' => $newTab];
+
+        return $this;
+    }
+
+    /**
+     * Set the livewire event to dispatch to, when the user clicks on the next button of your step.
+     *
+     * @param  Step  ...$args
+     * @return $this
+     */
+    public function dispatchOnPrev(string $name, ...$params): self
+    {
+        $this->dispatchOnPrev = ['name' => $name, 'params' => $params];
+
+        return $this;
+    }
+
+    public function getClickOnPrev(): ?string
+    {
+        return $this->clickOnPrev;
+    }
+
+    public function getNotifyOnPrev(): ?array
+    {
+        return $this->notifyOnPrev;
+    }
+
+    public function getDispatchOnPrev(): ?array
+    {
+        return $this->dispatchOnPrev;
+    }
+
+    public function getRedirectOnPrev(): ?array
+    {
+        return $this->redirectOnPrev;
     }
 }

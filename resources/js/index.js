@@ -1,7 +1,11 @@
 import {driver} from "driver.js";
 import {initCssSelector} from './css-selector.js';
 
-document.addEventListener('livewire:initialized', async function () {
+// Guard to avoid re-registering listeners on every Livewire navigation
+let listenersRegistered = false;
+
+// Shared state across navigations; reset per navigation
+async function eventHandler (event) {
     initCssSelector();
 
     let pluginData;
@@ -39,34 +43,72 @@ document.addEventListener('livewire:initialized', async function () {
 
     Livewire.dispatch('filament-tour::load-elements', {request: window.location})
 
-    Livewire.on('filament-tour::loaded-elements', function (data) {
-        pluginData = data;
-        pluginData.tours.forEach((tour) => {
-            tours.push(tour);
+    // Register Livewire event listeners only once to prevent duplicated handlers
+    if (!listenersRegistered) {
+        listenersRegistered = true;
 
-            if (pluginData.history_type === 'local_storage' && !localStorage.getItem('tours')) {
-                localStorage.setItem('tours', "[]");
+        Livewire.on('filament-tour::loaded-elements', function (data) {
+            pluginData = data;
+            pluginData.tours.forEach((tour) => {
+                tours.push(tour);
+
+                if (pluginData.history_type === 'local_storage' && !localStorage.getItem('tours')) {
+                    localStorage.setItem('tours', "[]");
+                }
+            });
+
+            if (pluginData.auto_start_tours === undefined || pluginData.auto_start_tours === true) {
+                selectTour(tours);
+            }
+
+            pluginData.highlights.forEach((highlight) => {
+                if (highlight.route === window.location.pathname) {
+                    //TODO Add a more precise/efficient selector
+                    waitForElement(highlight.parent, function (selector) {
+                        selector.parentNode.style.position = 'relative';
+                        let tempDiv = document.createElement('div');
+                        tempDiv.innerHTML = highlight.button;
+                        tempDiv.firstChild.classList.add(highlight.position);
+                        selector.parentNode.insertBefore(tempDiv.firstChild, selector)
+                    });
+                    highlights.push(highlight);
+                }
+            });
+        });
+
+        Livewire.on('filament-tour::open-highlight', function (params) {
+            const id = parseId(params);
+            let highlight = highlights.find(element => element.id === id);
+            if (highlight) {
+                driver({
+                    overlayColor: localStorage.theme === 'light' ? highlight.colors.light : highlight.colors.dark,
+                    onPopoverRender: (popover, {config, state}) => {
+                        popover.title.innerHTML = "";
+                        popover.title.innerHTML = state.activeStep.popover.title;
+                        if (!state.activeStep.popover.description) {
+                            popover.title.firstChild.style.justifyContent = 'center';
+                        }
+                        let contentClasses = "dark:text-white fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 mb-4";
+                        popover.footer.parentElement.classList.add(...contentClasses.split(" "));
+                    },
+                }).highlight(highlight);
+            } else {
+                console.error(`Highlight with id '${id}' not found`);
             }
         });
 
-        if (pluginData.auto_start_tours === undefined || pluginData.auto_start_tours === true) {
-            selectTour(tours);
-        }
+        Livewire.on('filament-tour::open-tour', function (params) {
+            const id = parseId(params);
+            let tourId = pluginData.prefix + id;
+            let tour = tours.find(element => element.id === tourId);
 
-        pluginData.highlights.forEach((highlight) => {
-            if (highlight.route === window.location.pathname) {
-                //TODO Add a more precise/efficient selector
-                waitForElement(highlight.parent, function (selector) {
-                    selector.parentNode.style.position = 'relative';
-                    let tempDiv = document.createElement('div');
-                    tempDiv.innerHTML = highlight.button;
-                    tempDiv.firstChild.classList.add(highlight.position);
-                    selector.parentNode.insertBefore(tempDiv.firstChild, selector)
-                });
-                highlights.push(highlight);
+            if (tour) {
+                openTour(tour);
+            } else {
+                console.error(`Tour with id '${id}' not found`);
             }
         });
-    });
+    }
 
     function hasTourCompleted(id) {
         // TourHistoryType::None - do nothing
@@ -129,38 +171,6 @@ document.addEventListener('livewire:initialized', async function () {
         }
     }
 
-    Livewire.on('filament-tour::open-highlight', function (params) {
-        const id = parseId(params);
-        let highlight = highlights.find(element => element.id === id);
-        if (highlight) {
-            driver({
-                overlayColor: localStorage.theme === 'light' ? highlight.colors.light : highlight.colors.dark,
-                onPopoverRender: (popover, {config, state}) => {
-                    popover.title.innerHTML = "";
-                    popover.title.innerHTML = state.activeStep.popover.title;
-                    if (!state.activeStep.popover.description) {
-                        popover.title.firstChild.style.justifyContent = 'center';
-                    }
-                    let contentClasses = "dark:text-white fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 mb-4";
-                    popover.footer.parentElement.classList.add(...contentClasses.split(" "));
-                },
-            }).highlight(highlight);
-        } else {
-            console.error(`Highlight with id '${id}' not found`);
-        }
-    });
-
-    Livewire.on('filament-tour::open-tour', function (params) {
-        const id = parseId(params);
-        let tourId = pluginData.prefix + id;
-        let tour = tours.find(element => element.id === tourId);
-
-        if (tour) {
-            openTour(tour);
-        } else {
-            console.error(`Tour with id '${id}' not found`);
-        }
-    });
 
     function openTour(tour) {
         let steps = JSON.parse(tour.steps);
@@ -249,15 +259,55 @@ document.addEventListener('livewire:initialized', async function () {
                     }
                     driverObj.moveNext();
                 }),
+                onPrevClick: ((element, step, {config, state}) => {
+                    if (tours.length > 1 && driverObj.isFirstStep()) {
+                        let index = tours.findIndex(objet => objet.id === tour.id);
+
+                        if (index !== -1 && index > 0) {
+                            let prevTourIndex = index - 1;
+                            selectTour(tours, prevTourIndex);
+                        }
+                    }
+
+                    if (step.events) {
+                        if (step.events.notifyOnNext) {
+                            new FilamentNotification()
+                                .title(step.events.notifyOnNext.title)
+                                .body(step.events.notifyOnNext.body)
+                                .icon(step.events.notifyOnNext.icon)
+                                .iconColor(step.events.notifyOnNext.iconColor)
+                                .color(step.events.notifyOnNext.color)
+                                .duration(step.events.notifyOnNext.duration)
+                                .send();
+                        }
+
+                        if (step.events.dispatchOnPrev) {
+                            Livewire.dispatch(step.events.dispatchOnPrev.name, step.events.dispatchOnPrev.params);
+                        }
+
+                        if (step.events.clickOnPrev) {
+                            document.querySelector(step.events.clickOnPrev).click();
+                        }
+
+                        if (step.events.redirectOnPrev) {
+                            window.open(step.events.redirectOnPrev.url, step.events.redirectOnPrev.newTab ? '_blank' : '_self');
+                        }
+                    }
+
+                    driverObj.movePrevious();
+                }),
+
                 onPopoverRender: (popover, {config, state}) => {
                     if (state.activeStep.uncloseable || tour.uncloseable) {
                         document.querySelector(".driver-popover-close-btn").remove();
                     }
 
+                    // let contentClasses = "dark:text-white fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 mb-4";
+
                     let nextButton = document.querySelector(".driver-popover-footer .driver-popover-next-btn");
-                    nextButton.style.setProperty('--c-400', 'var(--primary-400');
-                    nextButton.style.setProperty('--c-500', 'var(--primary-500');
-                    nextButton.style.setProperty('--c-600', 'var(--primary-600');
+                    // nextButton.style.setProperty('--c-400', 'var(--primary-400');
+                    // nextButton.style.setProperty('--c-500', 'var(--primary-500');
+                    // nextButton.style.setProperty('--c-600', 'var(--primary-600');
                 },
                 steps: steps,
             });
@@ -265,4 +315,6 @@ document.addEventListener('livewire:initialized', async function () {
             driverObj.drive();
         }
     }
-});
+}
+
+document.addEventListener('livewire:navigated', eventHandler)

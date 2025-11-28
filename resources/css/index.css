@@ -1,33 +1,30 @@
-@import '../../vendor/filament/filament/resources/css/theme.css';
+/* Import */
 @import "driver.js/dist/driver.css";
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-@tailwind screens;
-
+/* Utilità */
 .hidden {
     display: none !important;
 }
 
+.driver-popover * {
+    font-family: inherit !important;
+}
+
+/* Cursore personalizzato */
 #circle-cursor {
     pointer-events: none;
     cursor: crosshair;
     display: none;
     width: 20px;
     height: 20px;
-    background-color: rgba(255, 255, 255, 0.5);
+    background: rgba(255,255,255,0.5);
     border-radius: 50%;
     position: absolute;
-    top: 0;
-    left: 0;
     z-index: 10000;
-    transition: width .3s, height .3s, left .1s, top .1s;
-    -webkit-box-shadow: 0px 0px 5px 0px rgb(var(--gray-950));
-    -moz-box-shadow: 0px 0px 5px 0px rgb(var(--gray-950));
-    box-shadow: 0px 0px 5px 0px rgb(var(--gray-950));
+    box-shadow: 0 0 5px rgb(var(--gray-950));
 }
 
+/* Driver.js Popover Base */
 .driver-popover {
     box-sizing: border-box;
     margin: 0;
@@ -36,12 +33,19 @@
     min-width: 300px !important;
     max-width: 750px !important;
     box-shadow: 0 1px 10px #0006;
-    z-index: 1000000000;
     position: fixed;
     top: 0;
     right: 0;
+
+    /* Tailwind Apply */
+    @apply p-6 bg-white text-gray-900;
 }
 
+.dark .driver-popover {
+    @apply bg-gray-900 text-gray-50;
+}
+
+/* Popover pulsanti ai 4 angoli */
 .driver-help-button {
     width: 15px;
     height: 15px;
@@ -49,51 +53,12 @@
     cursor: pointer;
 }
 
-.top-left {
-    top: -14px;
-    left: -16px;
-}
+.top-left    { top: -14px; left: -16px; }
+.top-right   { top: -14px; right: -16px; }
+.bottom-right { bottom: -14px; right: -16px; }
+.bottom-left  { bottom: -14px; left: -16px; }
 
-.top-right {
-    top: -14px;
-    right: -16px;
-}
-
-.bottom-right {
-    bottom: -14px;
-    right: -16px;
-}
-
-.bottom-left {
-    bottom: -14px;
-    left: -16px;
-}
-
-@layer utilities {
-    .dark .driver-popover-arrow {
-        border: 5px solid rgb(var(--gray-900)) !important;
-        border-right-color: #0000 !important;
-        border-bottom-color: #0000 !important;
-        border-top-color: #0000 !important;
-    }
-
-    .dark .driver-popover {
-        box-sizing: border-box;
-        margin: 0;
-        padding: 15px;
-        border-radius: 5px;
-        box-shadow: 0 1px 10px #0006;
-        z-index: 1000000000;
-        position: fixed;
-        top: 0;
-        right: 0;
-    }
-}
-
-.driver-popover {
-    @apply p-6;
-}
-
+/* Footer Popover */
 .driver-popover-footer {
     @apply items-center mt-4;
 }
@@ -102,18 +67,67 @@
     @apply space-x-4;
 }
 
-.driver-popover-footer button {
+.driver-popover-navigation-btns .driver-popover-prev-btn,
+.driver-popover-navigation-btns .driver-popover-next-btn {
     text-shadow: none;
+    @apply inline-flex items-center justify-center rounded-lg text-sm font-medium h-10 px-4 py-2
+        hover:bg-gray-100 bg-white;
 }
 
-.driver-popover-footer button.driver-popover-prev-btn {
-    @apply relative grid-flow-col items-center justify-center font-semibold outline-none transition duration-75 focus:ring-2 disabled:pointer-events-none disabled:opacity-70 rounded-lg gap-1.5 px-3 py-2 text-sm inline-grid shadow-sm bg-white text-gray-950 hover:bg-gray-50 dark:bg-white/5 dark:text-white dark:hover:bg-white/10 ring-1 ring-gray-950/10 dark:ring-white/20;
+.dark .driver-popover-navigation-btns .driver-popover-prev-btn,
+.dark .driver-popover-navigation-btns .driver-popover-next-btn {
+    @apply bg-gray-700 text-gray-50 hover:bg-gray-800 border-gray-700;
 }
 
-.driver-popover-footer button.driver-popover-next-btn {
-    @apply relative grid-flow-col items-center justify-center font-semibold outline-none transition duration-75 focus:ring-2 disabled:pointer-events-none disabled:opacity-70 rounded-lg gap-1.5 px-3 py-2 text-sm inline-grid shadow-sm bg-custom-600 text-white hover:bg-custom-500 dark:bg-custom-500 dark:hover:bg-custom-400 focus:ring-custom-500/50 dark:focus:ring-custom-400/50;
+/* Arrow: dark mode */
+.dark .driver-popover-arrow-side-top    { border-top-color: var(--color-gray-900); }
+.dark .driver-popover-arrow-side-bottom { border-bottom-color: var(--color-gray-900); }
+.dark .driver-popover-arrow-side-left   { border-left-color: var(--color-gray-900); }
+.dark .driver-popover-arrow-side-right  { border-right-color: var(--color-gray-900); }
+
+/* Nascondi freccia centrale */
+.driver-popover-arrow-side-center,
+.driver-popover-arrow-none {
+    display: none;
 }
 
-.driver-popover-close-btn {
-    @apply h-16 w-16 text-gray-400 hover:text-gray-500 dark:text-gray-500 dark:hover:text-gray-400 text-2xl;
+/* Allineamenti arrow */
+.driver-popover-arrow-side-left.driver-popover-arrow-align-start,
+.driver-popover-arrow-side-right.driver-popover-arrow-align-start {
+    top: 15px;
+}
+
+.driver-popover-arrow-side-top.driver-popover-arrow-align-start,
+.driver-popover-arrow-side-bottom.driver-popover-arrow-align-start {
+    left: 15px;
+}
+
+.driver-popover-arrow-align-end.driver-popover-arrow-side-left,
+.driver-popover-arrow-align-end.driver-popover-arrow-side-right {
+    bottom: 15px;
+}
+
+.driver-popover-arrow-side-top.driver-popover-arrow-align-end,
+.driver-popover-arrow-side-bottom.driver-popover-arrow-align-end {
+    right: 15px;
+}
+
+.driver-popover-arrow-side-left.driver-popover-arrow-align-center,
+.driver-popover-arrow-side-right.driver-popover-arrow-align-center {
+    top: 50%;
+    margin-top: -5px;
+}
+
+.driver-popover-arrow-side-top.driver-popover-arrow-align-center,
+.driver-popover-arrow-side-bottom.driver-popover-arrow-align-center {
+    left: 50%;
+    margin-left: -5px;
+}
+
+.dark .driver-popover-close-btn {
+    color: var(--color-gray-50);
+}
+
+.driver-popover-footer button:hover, .driver-popover-footer button:focus {
+    background-color: inherit;
 }

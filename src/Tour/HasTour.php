@@ -43,6 +43,10 @@ trait HasTour
                             'clickOnNext' => $step->getClickOnNext(),
                             'notifyOnNext' => $step->getNotifyOnNext(),
                             'dispatchOnNext' => $step->getDispatchOnNext(),
+                            'redirectOnPrev' => $step->getRedirectOnPrev(),
+                            'clickOnPrev' => $step->getClickOnPrev(),
+                            'notifyOnPrev' => $step->getNotifyOnPrev(),
+                            'dispatchOnPrev' => $step->getDispatchOnPrev(),
                         ];
                     }
 

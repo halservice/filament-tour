@@ -33,7 +33,7 @@ class FilamentTourWidget extends Component
             $instance = new $class;
 
             if ($instance instanceof Resource) {
-                collect($instance->getPages())->map(fn ($item) => $item->getPage())
+                collect($instance::getPages())->map(fn ($item) => $item->getPage())
                     ->flatten()
                     ->each(function ($item) use (&$filamentClasses) {
                         $filamentClasses[] = $item;
@@ -88,7 +88,7 @@ class FilamentTourWidget extends Component
             auto_start_tours: $filamentTourPlugin->getAutoStart(),
         );
 
-        if (config('app.env') != 'production') {
+        if (! app()->isProduction()) {
             $hasCssSelector = is_bool($filamentTourPlugin->isCssSelectorEnabled()) ? $filamentTourPlugin->isCssSelectorEnabled() : config('filament-tour.enable_css_selector');
             $this->dispatch('filament-tour::change-css-selector-status', enabled: $hasCssSelector);
         }

@@ -67,6 +67,9 @@ trait CanReadJson
         return $app;
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     private static function readJson(string $json): array
     {
         if (filter_var($json, FILTER_VALIDATE_URL)) {

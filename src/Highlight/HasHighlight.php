@@ -8,14 +8,14 @@ trait HasHighlight
 {
     use CanConstructRoute;
 
-    public function constructHighlights($class): array
+    public function constructHighlights(): array
     {
         $prefixId = config('filament-tour.highlight_prefix_id');
 
-        return collect($this->highlights())->mapWithKeys(function (Highlight $highlight, $item) use ($class, $prefixId) {
+        return collect($this->highlights())->mapWithKeys(function (Highlight $highlight, $item) use ($prefixId) {
 
             $data[$item] = [
-                'route' => $this->getRoute($class),
+                'route' => $this->getRoute(),
 
                 'id' => "{$prefixId}{$highlight->getId()}",
 

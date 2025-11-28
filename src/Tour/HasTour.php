@@ -9,7 +9,7 @@ trait HasTour
 {
     use CanConstructRoute;
 
-    public function constructTours($class): array
+    public function constructTours(): array
     {
         $prefixId = config('filament-tour.tour_prefix_id');
         $tours = [];
@@ -58,7 +58,7 @@ trait HasTour
                 })->toArray());
 
                 if ($steps) {
-                    $route = $this->getRoute($class);
+                    $route = $this->getRoute();
                     $tours[] = [
                         'id' => "{$prefixId}{$tour->getId()}",
                         'routesIgnored' => $tour->isRoutesIgnored(),

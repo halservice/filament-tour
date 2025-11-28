@@ -8,13 +8,16 @@ use Filament\Panel;
 use Filament\Support\Concerns\EvaluatesClosures;
 use Filament\View\PanelsRenderHook;
 use Illuminate\Support\Facades\Blade;
+use Livewire\Component;
+use Viezel\FilamentTour\Highlight\HasHighlight;
 use Viezel\FilamentTour\Tour\Enums\TourHistoryType;
+use Viezel\FilamentTour\Tour\HasTour;
 
 class FilamentTourPlugin implements Plugin
 {
     use EvaluatesClosures;
 
-    public Closure | bool $enabled = false;
+    public Closure | bool $enabled = true;
 
     private Closure | bool | null $onlyVisibleOnce = null;
 
@@ -44,9 +47,35 @@ class FilamentTourPlugin implements Plugin
 
     public function register(Panel $panel): void
     {
-//        if ($this->getEnabled()) {
-            $panel->renderHook(PanelsRenderHook::BODY_START, fn () => Blade::render('<livewire:filament-tour-widget/>'));
-//        }
+        if (! $this->getEnabled()) {
+            return;
+        }
+
+        $panel->renderHook(
+            PanelsRenderHook::PAGE_START,
+            function (): string {
+                if (!($route = request()->route())) {
+                    return '';
+                }
+
+                /** @var Component $controller */
+                $controller = $route->controller;
+                $tours = $highlights = [];
+
+                if (in_array(HasTour::class, class_uses($controller))) {
+                    /** @phpstan-ignore-next-line */
+                    $tours = $controller->constructTours();
+                }
+                if (in_array(HasHighlight::class, class_uses($controller))) {
+                    /** @phpstan-ignore-next-line */
+                    $highlights = $controller->constructHighlights();
+                }
+
+                return Blade::render('<livewire:filament-tour-widget :tours="$tours" :highlights="$highlights"/>', [
+                    'tours' => $tours,
+                    'highlights' => $highlights,
+                ]);
+            });
     }
 
     public function boot(Panel $panel): void {}

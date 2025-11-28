@@ -8,9 +8,9 @@ trait CanConstructRoute
 {
     private array|false|int|null|string $route = null;
 
-    public function getRoute($class): array|false|int|null|string
+    public function getRoute(): array|false|int|null|string
     {
-        $instance = new $class;
+//        $instance = new $class;
 
         if ($this->route != null) {
             return $this->route;
@@ -28,18 +28,18 @@ trait CanConstructRoute
 
             $slug = $tenant->slug;
             if ($slug) {
-                $this->route = parse_url($instance->getUrl(['tenant' => $slug]))['path'];
+                $this->route = parse_url(static::getUrl(['tenant' => $slug]))['path'];
             }
         } else {
-            if (method_exists($instance, 'getResource')) {
-                $resource = new ($instance->getResource());
+            if (method_exists(static::class, 'getResource')) {
+                $resource = new (static::getResource());
                 foreach ($resource->getPages() as $key => $page) {
-                    if ($class === $page->getPage()) {
+                    if (static::class === $page->getPage()) {
                         $this->route = parse_url($resource->getUrl($key))['path'];
                     }
                 }
             } else {
-                $this->route = parse_url($instance->getUrl())['path'] ?? '/';
+                $this->route = parse_url(static::getUrl())['path'] ?? '/';
             }
 
         }

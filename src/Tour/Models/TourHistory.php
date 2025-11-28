@@ -11,16 +11,23 @@ use Viezel\FilamentTour\Tour\Enums\TourHistoryStatus;
 
 class TourHistory extends Model
 {
+    /** @use HasFactory<TourHistoryFactory> */
     use HasFactory;
 
     protected $table = 'tour_history';
 
+    /**
+     * @var list<string>
+     */
     protected $fillable = [
         'user_id',
         'tour_id',
         'status',
     ];
 
+    /**
+     * @var array<string, string>
+     */
     protected $casts = [
         'status' => TourHistoryStatus::class,
     ];
@@ -38,6 +45,9 @@ class TourHistory extends Model
             ->exists();
     }
 
+    /**
+     * @return int[]
+     */
     public static function getCompletedTours(): array
     {
         return self::query()

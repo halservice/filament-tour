@@ -33,6 +33,10 @@ class Step
         $this->element = $element;
     }
 
+    /**
+     * @param array<string, mixed> $array
+     * @throws Exception
+     */
     public static function fromArray(array $array): static
     {
         $step = $array;

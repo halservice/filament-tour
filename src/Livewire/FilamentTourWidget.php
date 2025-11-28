@@ -25,45 +25,6 @@ class FilamentTourWidget extends Component
     #[On('filament-tour::load-elements')]
     public function load(): void
     {
-        $classesUsingHasTour = [];
-        $classesUsingHasHighlight = [];
-        $filamentClasses = [];
-
-        foreach (array_merge(Filament::getResources(), Filament::getPages()) as $class) {
-            $instance = new $class;
-
-            if ($instance instanceof Resource) {
-                collect($instance::getPages())->map(fn ($item) => $item->getPage())
-                    ->flatten()
-                    ->each(function ($item) use (&$filamentClasses) {
-                        $filamentClasses[] = $item;
-                    });
-            } else {
-                $filamentClasses[] = $class;
-            }
-
-        }
-
-        foreach ($filamentClasses as $class) {
-            $traits = class_uses($class);
-
-            if (in_array(HasTour::class, $traits)) {
-                $classesUsingHasTour[] = $class;
-            }
-
-            if (in_array(HasHighlight::class, $traits)) {
-                $classesUsingHasHighlight[] = $class;
-            }
-        }
-
-        foreach ($classesUsingHasTour as $class) {
-            $this->tours = array_merge($this->tours, (new $class)->constructTours($class));
-        }
-
-        foreach ($classesUsingHasHighlight as $class) {
-            $this->highlights = array_merge($this->highlights, (new $class)->constructHighlights($class));
-        }
-
         $filamentTourPlugin = FilamentTourPlugin::get();
         $historyType = $filamentTourPlugin->getHistoryType();
 

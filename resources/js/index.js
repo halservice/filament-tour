@@ -1,11 +1,11 @@
 import {driver} from "driver.js";
 import {initCssSelector} from './css-selector.js';
 
-// Guard to avoid re-registering listeners on every Livewire navigation
-let listenersRegistered = false;
+// Guard to avoid re-registering listeners on every Livewire navigation FIREFOX ISSUE!!!
+window.filamentTourElementsLoaded = [];
 
 // Shared state across navigations; reset per navigation
-async function eventHandler (event) {
+async function eventHandler(event) {
     initCssSelector();
 
     let pluginData;
@@ -43,72 +43,73 @@ async function eventHandler (event) {
 
     Livewire.dispatch('filament-tour::load-elements', {request: window.location})
 
-    // Register Livewire event listeners only once to prevent duplicated handlers
-    if (!listenersRegistered) {
-        listenersRegistered = true;
+    Livewire.on('filament-tour::loaded-elements', function (data) {
+        if (window.filamentTourElementsLoaded.indexOf(data.current_route_name) !== -1) {
+            return;
+        }
 
-        Livewire.on('filament-tour::loaded-elements', function (data) {
-            pluginData = data;
-            pluginData.tours.forEach((tour) => {
-                tours.push(tour);
+        window.filamentTourElementsLoaded.push(data.current_route_name);
 
-                if (pluginData.history_type === 'local_storage' && !localStorage.getItem('tours')) {
-                    localStorage.setItem('tours', "[]");
-                }
-            });
-
-            if (pluginData.auto_start_tours === undefined || pluginData.auto_start_tours === true) {
-                selectTour(tours);
-            }
-
-            pluginData.highlights.forEach((highlight) => {
-                if (highlight.route === window.location.pathname) {
-                    //TODO Add a more precise/efficient selector
-                    waitForElement(highlight.parent, function (selector) {
-                        selector.parentNode.style.position = 'relative';
-                        let tempDiv = document.createElement('div');
-                        tempDiv.innerHTML = highlight.button;
-                        tempDiv.firstChild.classList.add(highlight.position);
-                        selector.parentNode.insertBefore(tempDiv.firstChild, selector)
-                    });
-                    highlights.push(highlight);
-                }
-            });
-        });
-
-        Livewire.on('filament-tour::open-highlight', function (params) {
-            const id = parseId(params);
-            let highlight = highlights.find(element => element.id === id);
-            if (highlight) {
-                driver({
-                    overlayColor: localStorage.theme === 'light' ? highlight.colors.light : highlight.colors.dark,
-                    onPopoverRender: (popover, {config, state}) => {
-                        popover.title.innerHTML = "";
-                        popover.title.innerHTML = state.activeStep.popover.title;
-                        if (!state.activeStep.popover.description) {
-                            popover.title.firstChild.style.justifyContent = 'center';
-                        }
-                        let contentClasses = "dark:text-white fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 mb-4";
-                        popover.footer.parentElement.classList.add(...contentClasses.split(" "));
-                    },
-                }).highlight(highlight);
-            } else {
-                console.error(`Highlight with id '${id}' not found`);
+        pluginData = data;
+        pluginData.tours.forEach((tour) => {
+            tours.push(tour);
+            if (pluginData.history_type === 'local_storage' && !localStorage.getItem('tours')) {
+                localStorage.setItem('tours', "[]");
             }
         });
 
-        Livewire.on('filament-tour::open-tour', function (params) {
-            const id = parseId(params);
-            let tourId = pluginData.prefix + id;
-            let tour = tours.find(element => element.id === tourId);
+        if (pluginData.auto_start_tours === undefined || pluginData.auto_start_tours === true) {
+            selectTour(tours);
+        }
 
-            if (tour) {
-                openTour(tour);
-            } else {
-                console.error(`Tour with id '${id}' not found`);
+        pluginData.highlights.forEach((highlight) => {
+            if (highlight.route === window.location.pathname) {
+                //TODO Add a more precise/efficient selector
+                waitForElement(highlight.parent, function (selector) {
+                    selector.parentNode.style.position = 'relative';
+                    let tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = highlight.button;
+                    tempDiv.firstChild.classList.add(highlight.position);
+                    selector.parentNode.insertBefore(tempDiv.firstChild, selector)
+                });
+                highlights.push(highlight);
             }
         });
-    }
+    });
+
+    Livewire.on('filament-tour::open-highlight', function (params) {
+        const id = parseId(params);
+        let highlight = highlights.find(element => element.id === id);
+        if (highlight) {
+            driver({
+                overlayColor: localStorage.theme === 'light' ? highlight.colors.light : highlight.colors.dark,
+                onPopoverRender: (popover, {config, state}) => {
+                    popover.title.innerHTML = "";
+                    popover.title.innerHTML = state.activeStep.popover.title;
+                    if (!state.activeStep.popover.description) {
+                        popover.title.firstChild.style.justifyContent = 'center';
+                    }
+                    let contentClasses = "dark:text-white fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 mb-4";
+                    popover.footer.parentElement.classList.add(...contentClasses.split(" "));
+                },
+            }).highlight(highlight);
+        } else {
+            console.error(`Highlight with id '${id}' not found`);
+        }
+    });
+
+    Livewire.on('filament-tour::open-tour', function (params) {
+        const id = parseId(params);
+        let tourId = pluginData.prefix + id;
+        let tour = tours.find(element => element.id === tourId);
+
+        if (tour) {
+            openTour(tour);
+        } else {
+            console.error(`Tour with id '${id}' not found`);
+        }
+    });
+
 
     function hasTourCompleted(id) {
         // TourHistoryType::None - do nothing

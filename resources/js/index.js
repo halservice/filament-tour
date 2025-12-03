@@ -1,191 +1,188 @@
-import {driver} from "driver.js";
-import {initCssSelector} from './css-selector.js';
+import { driver } from "driver.js";
+import { initCssSelector } from './css-selector.js';
+
+// --- HELPER FUNCTIONS (Pure Logic) ---
+
+const parseId = (params) => Array.isArray(params) ? params[0] : (params?.id || params);
+
+const waitForElement = (selector, callback) => {
+    const el = document.querySelector(selector);
+    if (el) return callback(el);
+
+    const observer = new MutationObserver(() => {
+        const el = document.querySelector(selector);
+        if (el) {
+            callback(el);
+            observer.disconnect();
+        }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+};
+
+// Gestisce tutti gli eventi (notifiche, redirect, dispatch) per evitare ripetizioni
+const handleStepEvents = (events, type) => {
+    if (!events) return;
+    const suffix = type === 'next' ? 'Next' : 'Prev';
+
+    // Notifications
+    const notify = events[`notifyOn${suffix}`];
+    if (notify && typeof FilamentNotification !== 'undefined') {
+        new FilamentNotification()
+            .title(notify.title)
+            .body(notify.body)
+            .icon(notify.icon)
+            .iconColor(notify.iconColor)
+            .color(notify.color)
+            .duration(notify.duration)
+            .send();
+    }
+
+    // Livewire Dispatch
+    const dispatch = events[`dispatchOn${suffix}`];
+    if (dispatch) Livewire.dispatch(dispatch.name, dispatch.params);
+
+    // Click Element
+    const clickSelector = events[`clickOn${suffix}`];
+    if (clickSelector) document.querySelector(clickSelector)?.click();
+
+    // Redirect
+    const redirect = events[`redirectOn${suffix}`];
+    if (redirect) window.open(redirect.url, redirect.newTab ? '_blank' : '_self');
+};
+
+
+// --- MAIN LOGIC ---
 
 // Guard to avoid re-registering listeners on every Livewire navigation FIREFOX ISSUE!!!
 window.filamentTourElementsLoaded = [];
 
-// Shared state across navigations; reset per navigation
 async function eventHandler(event) {
     initCssSelector();
 
-    let pluginData;
+    let pluginData = null;
     let tours = [];
     let highlights = [];
 
-    function waitForElement(selector, callback) {
-        if (document.querySelector(selector)) {
-            callback(document.querySelector(selector));
-            return;
-        }
+    // Caricamento dati
+    Livewire.dispatch('filament-tour::load-elements', { request: window.location });
 
-        const observer = new MutationObserver(function (mutations) {
-            if (document.querySelector(selector)) {
-                callback(document.querySelector(selector));
-                observer.disconnect();
-            }
-        });
-
-        observer.observe(document.body, {
-            childList: true,
-            subtree: true
-        });
-    }
-
-    function parseId(params) {
-        if (Array.isArray(params)) {
-            return params[0];
-        } else if (typeof params === 'object') {
-            return params.id;
-        }
-
-        return params;
-    }
-
-    Livewire.dispatch('filament-tour::load-elements', {request: window.location})
-
-    Livewire.on('filament-tour::loaded-elements', function (data) {
-        if (window.filamentTourElementsLoaded.indexOf(data.current_route_name) !== -1) {
+    Livewire.on('filament-tour::loaded-elements', (data) => {
+        if (window.filamentTourElementsLoaded.includes(data.current_route_name)) {
+            pluginData = data;
             return;
         }
 
         window.filamentTourElementsLoaded.push(data.current_route_name);
-
         pluginData = data;
-        pluginData.tours.forEach((tour) => {
-            tours.push(tour);
-        });
+        tours.push(...data.tours);
 
+        // Setup LocalStorage
         if (pluginData.history_type === 'local_storage' && !localStorage.getItem('tours')) {
             localStorage.setItem('tours', "[]");
         }
 
-        if (pluginData.auto_start_tours === undefined || pluginData.auto_start_tours === true) {
+        // Auto Start
+        if (pluginData.auto_start_tours !== false) {
             selectTour(tours);
         }
 
+        // Render Highlights
         pluginData.highlights.forEach((highlight) => {
             if (highlight.route === window.location.pathname) {
-                //TODO Add a more precise/efficient selector
-                waitForElement(highlight.parent, function (selector) {
-                    selector.parentNode.style.position = 'relative';
-                    let tempDiv = document.createElement('div');
+                waitForElement(highlight.parent, (element) => {
+                    element.parentNode.style.position = 'relative';
+                    const tempDiv = document.createElement('div');
                     tempDiv.innerHTML = highlight.button;
                     tempDiv.firstChild.classList.add(highlight.position);
-                    selector.parentNode.insertBefore(tempDiv.firstChild, selector)
+                    element.parentNode.insertBefore(tempDiv.firstChild, element);
                 });
                 highlights.push(highlight);
             }
         });
     });
 
-    Livewire.on('filament-tour::open-highlight', function (params) {
+    Livewire.on('filament-tour::open-highlight', (params) => {
         const id = parseId(params);
-        let highlight = highlights.find(element => element.id === id);
-        if (highlight) {
-            driver({
-                overlayColor: localStorage.theme === 'light' ? highlight.colors.light : highlight.colors.dark,
-                onPopoverRender: (popover, {config, state}) => {
-                    popover.title.innerHTML = "";
-                    popover.title.innerHTML = state.activeStep.popover.title;
-                    if (!state.activeStep.popover.description) {
-                        popover.title.firstChild.style.justifyContent = 'center';
-                    }
-                    let contentClasses = "dark:text-white fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 mb-4";
-                    popover.footer.parentElement.classList.add(...contentClasses.split(" "));
-                },
-            }).highlight(highlight);
-        } else {
-            console.error(`Highlight with id '${id}' not found`);
-        }
+        const highlight = highlights.find(el => el.id === id);
+
+        if (!highlight) return console.error(`Highlight with id '${id}' not found`);
+
+        driver({
+            overlayColor: localStorage.theme === 'light' ? highlight.colors.light : highlight.colors.dark,
+            onPopoverRender: (popover, { state }) => {
+                popover.title.innerText = state.activeStep.popover.title;
+                if (!state.activeStep.popover.description) {
+                    popover.title.style.justifyContent = 'center';
+                }
+                const classes = "dark:text-white fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 mb-4";
+                popover.footer.parentElement.classList.add(...classes.split(" "));
+            },
+        }).highlight(highlight);
     });
 
-    Livewire.on('filament-tour::open-tour', function (params) {
+    Livewire.on('filament-tour::open-tour', (params) => {
         const id = parseId(params);
-        let tourId = pluginData.prefix + id;
-        let tour = tours.find(element => element.id === tourId);
-
-        if (tour) {
-            openTour(tour);
-        } else {
-            console.error(`Tour with id '${id}' not found`);
-        }
+        const tour = tours.find(el => el.id === pluginData.prefix + id);
+        tour ? openTour(tour) : console.error(`Tour with id '${id}' not found`);
     });
 
-    Livewire.on('filament-tour::reset-tour', function (params) {
+    Livewire.on('filament-tour::reset-tour', (params) => {
         const id = parseId(params);
-        let tourId = pluginData.prefix + id;
-        let tour = tours.find(element => element.id === tourId);
+        const tourId = pluginData.prefix + id;
 
         pluginData.completed_tours = pluginData.completed_tours.filter(item => item !== id);
 
         if (pluginData.history_type === 'local_storage') {
-            const storedTours = localStorage.getItem('tours');
-            let toursArray = storedTours ? JSON.parse(storedTours) : [];
-            toursArray = toursArray.filter(item => item !== tourId);
-            localStorage.setItem('tours', JSON.stringify(toursArray));
+            const stored = JSON.parse(localStorage.getItem('tours') || "[]");
+            localStorage.setItem('tours', JSON.stringify(stored.filter(item => item !== tourId)));
         }
 
-        if (tour) {
-            openTour(tour);
-        } else {
-            console.error(`Tour with id '${id}' not found`);
-        }
+        const tour = tours.find(el => el.id === tourId);
+        tour ? openTour(tour) : console.error(`Tour with id '${id}' not found`);
     });
 
+    // --- TOUR LOGIC FUNCTIONS ---
 
     function hasTourCompleted(id) {
-        // TourHistoryType::None - do nothing
         if (pluginData.history_type === 'local_storage') {
             return localStorage.getItem('tours').includes(id);
         }
-
         if (pluginData.history_type === 'database') {
             return pluginData.completed_tours.includes(id.replace(pluginData.prefix, ''));
         }
+        return false;
     }
 
-    function shouldCompleteOnDismiss(tour) {
-        return tour.shouldCompleteOnDismiss;
-    }
+    function markTour(tour, status) {
+        // Status: 'complete' or 'dismissed'
+        const eventObj = status === 'complete' ? tour.dispatchOnComplete : tour.dispatchOnDismiss;
+        const livewireEvent = status === 'complete' ? 'filament-tour::tour-completed' : 'filament-tour::tour-dismissed';
 
-    function markTourAsComplete(tour) {
-        // TourHistoryType::None - do nothing
-        if (tour.dispatchOnComplete) {
-            Livewire.dispatch(tour.dispatchOnComplete.name, tour.dispatchOnComplete.params);
-        }
-
-        if (pluginData.history_type === 'local_storage') {
-            localStorage.setItem('tours', JSON.stringify([...JSON.parse(localStorage.getItem('tours')), tour.id]));
-        }
+        if (eventObj) Livewire.dispatch(eventObj.name, eventObj.params);
 
         if (pluginData.history_type === 'database') {
-            Livewire.dispatch('filament-tour::tour-completed', {id: tour.id});
+            Livewire.dispatch(livewireEvent, { id: tour.id });
+        } else if (status === 'complete' && pluginData.history_type === 'local_storage') {
+            const current = JSON.parse(localStorage.getItem('tours'));
+            localStorage.setItem('tours', JSON.stringify([...current, tour.id]));
         }
     }
 
-    function markTourAsDismissed(tour) {
-        if (tour.dispatchOnDismiss) {
-            Livewire.dispatch(tour.dispatchOnDismiss.name, tour.dispatchOnDismiss.params);
-        }
-        if (pluginData.history_type === 'database') {
-            Livewire.dispatch('filament-tour::tour-dismissed', {id: tour.id});
-        }
-    }
+    function selectTour(toursList, startIndex = 0) {
+        for (let i = startIndex; i < toursList.length; i++) {
+            const tour = toursList[i];
+            const isMatch = (tour.route === window.location.pathname) || (tour.routeName === pluginData.current_route_name);
+            const isDone = hasTourCompleted(tour.id);
+            const showCondition = !pluginData.only_visible_once || !isDone;
 
-    function selectTour(tours, startIndex = 0) {
-        for (let i = startIndex; i < tours.length; i++) {
-            let tour = tours[i];
-            let conditionAlwaysShow = tour.alwaysShow;
-            let conditionRoutesIgnored = tour.routesIgnored;
-            let conditionRouteMatches = (tour.route === window.location.pathname) || (tour.routeName === pluginData.current_route_name);
-            let conditionVisibleOnce = !pluginData.only_visible_once ||
-                (pluginData.only_visible_once && !hasTourCompleted(tour.id));
-
+            // Logica semplificata:
+            // 1. AlwaysShow E (Ignored OR (NotIgnored AND Match))
+            // 2. OR (Ignored AND ShowCondition)
+            // 3. OR (Match AND ShowCondition)
             if (
-                (conditionAlwaysShow && conditionRoutesIgnored) ||
-                (conditionAlwaysShow && !conditionRoutesIgnored && conditionRouteMatches) ||
-                (conditionRoutesIgnored && conditionVisibleOnce) ||
-                (conditionRouteMatches && conditionVisibleOnce)
+                (tour.alwaysShow && (tour.routesIgnored || (!tour.routesIgnored && isMatch))) ||
+                (tour.routesIgnored && showCondition) ||
+                (isMatch && showCondition)
             ) {
                 openTour(tour);
                 break;
@@ -193,150 +190,78 @@ async function eventHandler(event) {
         }
     }
 
-
     function openTour(tour) {
-        let steps = JSON.parse(tour.steps);
-        if (steps.length > 0) {
-            const driverObj = driver({
-                allowClose: true,
-                disableActiveInteraction: true,
-                overlayColor: localStorage.theme === 'light' ? tour.colors.light : tour.colors.dark,
-                nextBtnText: tour.nextButtonLabel,
-                prevBtnText: tour.previousButtonLabel,
-                doneBtnText: tour.doneButtonLabel,
-                showProgress: tour.showProgress,
-                progressText: tour.progressText,
-                popoverClass: tour.popoverClass,
-                onDeselected: ((element, step, {config, state}) => {
+        const steps = JSON.parse(tour.steps);
+        if (!steps.length) return;
 
-                }),
-                onCloseClick: ((element, step, {config, state}) => {
-                    if (state.activeStep && (!state.activeStep.uncloseable || tour.uncloseable)) {
-                        if (!driverObj.isLastStep() && !hasTourCompleted(tour.id)) {
-                            if (shouldCompleteOnDismiss(tour)) {
-                                markTourAsComplete(tour);
-                            } else {
-                                markTourAsDismissed(tour);
-                            }
-                        }
-                        driverObj.destroy();
+        const driverObj = driver({
+            allowClose: true,
+            disableActiveInteraction: true,
+            overlayColor: localStorage.theme === 'light' ? tour.colors.light : tour.colors.dark,
+            nextBtnText: tour.nextButtonLabel,
+            prevBtnText: tour.previousButtonLabel,
+            doneBtnText: tour.doneButtonLabel,
+            showProgress: tour.showProgress,
+            progressText: tour.progressText,
+            popoverClass: tour.popoverClass,
+
+            onCloseClick: (el, step, { state }) => {
+                const active = state.activeStep;
+                if (active && (!active.uncloseable || tour.uncloseable)) {
+                    if (!driverObj.isLastStep() && !hasTourCompleted(tour.id)) {
+                        markTour(tour, tour.shouldCompleteOnDismiss ? 'complete' : 'dismissed');
                     }
-                }),
-                onDestroyStarted: ((element, step, {config, state}) => {
-                    if (state.activeStep && !state.activeStep.uncloseable && !tour.uncloseable) {
-                        if (!driverObj.isLastStep()) {
-                            if (shouldCompleteOnDismiss(tour)) {
-                                markTourAsComplete(tour);
-                            } else {
-                                markTourAsDismissed(tour);
-                            }
-                        }
-                        driverObj.destroy();
+                    driverObj.destroy();
+                }
+            },
+            onDestroyStarted: (el, step, { state }) => {
+                const active = state.activeStep;
+                // Controllo sicurezza se step esiste
+                if (active && !active.uncloseable && !tour.uncloseable) {
+                    if (!driverObj.isLastStep()) {
+                        markTour(tour, tour.shouldCompleteOnDismiss ? 'complete' : 'dismissed');
                     }
-                }),
-                onDestroyed: ((element, step, {config, state}) => {
-
-                }),
-                onNextClick: ((element, step, {config, state}) => {
-                    if (tours.length > 1 && driverObj.isLastStep()) {
-                        let index = tours.findIndex(objet => objet.id === tour.id);
-
-                        if (index !== -1 && index < tours.length - 1) {
-                            let nextTourIndex = index + 1;
-                            selectTour(tours, nextTourIndex);
-                        }
+                    driverObj.destroy();
+                }
+            },
+            onNextClick: (el, step) => {
+                // Chain Tours
+                if (tours.length > 1 && driverObj.isLastStep()) {
+                    const index = tours.findIndex(t => t.id === tour.id);
+                    if (index !== -1 && index < tours.length - 1) {
+                        selectTour(tours, index + 1);
                     }
+                }
 
-                    if (driverObj.isLastStep()) {
-                        if (!hasTourCompleted(tour.id)) {
-                            markTourAsComplete(tour);
-                        }
+                if (driverObj.isLastStep()) {
+                    if (!hasTourCompleted(tour.id)) markTour(tour, 'complete');
+                    driverObj.destroy();
+                }
 
-                        driverObj.destroy();
+                handleStepEvents(step.events, 'next');
+                driverObj.moveNext();
+            },
+            onPrevClick: (el, step) => {
+                if (tours.length > 1 && driverObj.isFirstStep()) {
+                    const index = tours.findIndex(t => t.id === tour.id);
+                    if (index !== -1 && index > 0) {
+                        selectTour(tours, index - 1);
                     }
+                }
 
-                    if (step.events) {
-                        if (step.events.notifyOnNext) {
-                            new FilamentNotification()
-                                .title(step.events.notifyOnNext.title)
-                                .body(step.events.notifyOnNext.body)
-                                .icon(step.events.notifyOnNext.icon)
-                                .iconColor(step.events.notifyOnNext.iconColor)
-                                .color(step.events.notifyOnNext.color)
-                                .duration(step.events.notifyOnNext.duration)
-                                .send();
-                        }
+                handleStepEvents(step.events, 'prev');
+                driverObj.movePrevious();
+            },
+            onPopoverRender: (popover, { state }) => {
+                if (state.activeStep.uncloseable || tour.uncloseable) {
+                    document.querySelector(".driver-popover-close-btn")?.remove();
+                }
+            },
+            steps: steps,
+        });
 
-                        if (step.events.dispatchOnNext) {
-                            Livewire.dispatch(step.events.dispatchOnNext.name, step.events.dispatchOnNext.params);
-                        }
-
-                        if (step.events.clickOnNext) {
-                            document.querySelector(step.events.clickOnNext).click();
-                        }
-
-                        if (step.events.redirectOnNext) {
-                            window.open(step.events.redirectOnNext.url, step.events.redirectOnNext.newTab ? '_blank' : '_self');
-                        }
-                    }
-                    driverObj.moveNext();
-                }),
-                onPrevClick: ((element, step, {config, state}) => {
-                    if (tours.length > 1 && driverObj.isFirstStep()) {
-                        let index = tours.findIndex(objet => objet.id === tour.id);
-
-                        if (index !== -1 && index > 0) {
-                            let prevTourIndex = index - 1;
-                            selectTour(tours, prevTourIndex);
-                        }
-                    }
-
-                    if (step.events) {
-                        if (step.events.notifyOnNext) {
-                            new FilamentNotification()
-                                .title(step.events.notifyOnNext.title)
-                                .body(step.events.notifyOnNext.body)
-                                .icon(step.events.notifyOnNext.icon)
-                                .iconColor(step.events.notifyOnNext.iconColor)
-                                .color(step.events.notifyOnNext.color)
-                                .duration(step.events.notifyOnNext.duration)
-                                .send();
-                        }
-
-                        if (step.events.dispatchOnPrev) {
-                            Livewire.dispatch(step.events.dispatchOnPrev.name, step.events.dispatchOnPrev.params);
-                        }
-
-                        if (step.events.clickOnPrev) {
-                            document.querySelector(step.events.clickOnPrev).click();
-                        }
-
-                        if (step.events.redirectOnPrev) {
-                            window.open(step.events.redirectOnPrev.url, step.events.redirectOnPrev.newTab ? '_blank' : '_self');
-                        }
-                    }
-
-                    driverObj.movePrevious();
-                }),
-
-                onPopoverRender: (popover, {config, state}) => {
-                    if (state.activeStep.uncloseable || tour.uncloseable) {
-                        document.querySelector(".driver-popover-close-btn").remove();
-                    }
-
-                    // let contentClasses = "dark:text-white fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 mb-4";
-
-                    let nextButton = document.querySelector(".driver-popover-footer .driver-popover-next-btn");
-                    // nextButton.style.setProperty('--c-400', 'var(--primary-400');
-                    // nextButton.style.setProperty('--c-500', 'var(--primary-500');
-                    // nextButton.style.setProperty('--c-600', 'var(--primary-600');
-                },
-                steps: steps,
-            });
-
-            driverObj.drive();
-        }
+        driverObj.drive();
     }
 }
 
-document.addEventListener('livewire:navigated', eventHandler)
+document.addEventListener('livewire:navigated', eventHandler);

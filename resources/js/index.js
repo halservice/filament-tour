@@ -53,10 +53,11 @@ async function eventHandler(event) {
         pluginData = data;
         pluginData.tours.forEach((tour) => {
             tours.push(tour);
-            if (pluginData.history_type === 'local_storage' && !localStorage.getItem('tours')) {
-                localStorage.setItem('tours', "[]");
-            }
         });
+
+        if (pluginData.history_type === 'local_storage' && !localStorage.getItem('tours')) {
+            localStorage.setItem('tours', "[]");
+        }
 
         if (pluginData.auto_start_tours === undefined || pluginData.auto_start_tours === true) {
             selectTour(tours);
@@ -110,10 +111,30 @@ async function eventHandler(event) {
         }
     });
 
+    Livewire.on('filament-tour::reset-tour', function (params) {
+        const id = parseId(params);
+        let tourId = pluginData.prefix + id;
+        let tour = tours.find(element => element.id === tourId);
+
+        pluginData.completed_tours = pluginData.completed_tours.filter(item => item !== id);
+
+        if (pluginData.history_type === 'local_storage') {
+            const storedTours = localStorage.getItem('tours');
+            let toursArray = storedTours ? JSON.parse(storedTours) : [];
+            toursArray = toursArray.filter(item => item !== tourId);
+            localStorage.setItem('tours', JSON.stringify(toursArray));
+        }
+
+        if (tour) {
+            openTour(tour);
+        } else {
+            console.error(`Tour with id '${id}' not found`);
+        }
+    });
+
 
     function hasTourCompleted(id) {
         // TourHistoryType::None - do nothing
-
         if (pluginData.history_type === 'local_storage') {
             return localStorage.getItem('tours').includes(id);
         }
